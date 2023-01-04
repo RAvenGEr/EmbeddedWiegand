@@ -8,6 +8,7 @@
  * @copyright Copyright (c) 2023
  */
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -89,7 +90,7 @@ public:
     template<typename T>
     bool send(T code, size_t send_bits = SEND_BITS)
     {
-        if (state != IDLE) {
+        if (state_.load(std::memory_order_acquire) != IDLE) {
             return false;
         }
         using S = typename std::common_type<T, uint32_t>::type;
@@ -103,7 +104,7 @@ public:
         }
         send_pos_ = 0;
         send_bits_ = send_bits;
-        state_ = SENDING;
+        state_.store(SENDING, std::memory_order_release);
         return true;
     }
 
@@ -116,7 +117,7 @@ public:
      */
     void tick()
     {
-        if (state_ != SENDING) {
+        if (state_.load(std::memory_order_acquire) != SENDING) {
             return;
         }
         if (send_pos_ == 0) {
@@ -136,7 +137,7 @@ public:
             if (--send_bits_ == 0) {
                 d0_pin_.input();
                 d1_pin_.input();
-                state_ = IDLE;
+                state_.store(IDLE, std::memory_order_release);
                 return;
             }
             break;
@@ -158,7 +159,7 @@ private:
         SENDING
     };
 
-    State state_{IDLE};
+    std::atomic<State> state_{IDLE};
 
     Pin& d0_pin_;
     Pin& d1_pin_;
