@@ -112,19 +112,29 @@ public:
      * @brief Progress the sending state
      * 
      * @note This function must be called at a fixed interval while sending,
-     * the recommended interval is 80 milliseconds. This is safe to call from
+     * the recommended interval is 50 microseconds. This is safe to call from
      * an interrupt.
      */
     void tick()
     {
-        if (state_.load(std::memory_order_acquire) != SENDING) {
+        static constexpr size_t TICKS_PER_BIT = 16;
+        /** Delay between sending, suggested minimum of 20ms */
+        static constexpr size_t DELAY_TICKS = 400;
+        const auto state = state_.load(std::memory_order_acquire);
+        if (state == SEND_DELAY) {
+            if (--send_bits_ == 0) {
+                state_.store(IDLE, std::memory_order_release);
+            }
+            return;
+        }
+        if (state != SENDING) {
             return;
         }
         if (send_pos_ == 0) {
             d0_pin_.output();
             d1_pin_.output();
         }
-        const size_t tick_state = send_pos_ % 4;
+        const size_t tick_state = send_pos_ % TICKS_PER_BIT;
         switch (tick_state) {
         case 0:
             write_bit(code_ & mask_bit_);
@@ -137,7 +147,8 @@ public:
             if (--send_bits_ == 0) {
                 d0_pin_.input();
                 d1_pin_.input();
-                state_.store(IDLE, std::memory_order_release);
+                send_bits_ = DELAY_TICKS;
+                state_.store(SEND_DELAY, std::memory_order_release);
                 return;
             }
             break;
@@ -156,7 +167,8 @@ private:
     {
         IDLE,
         RECEIVING,
-        SENDING
+        SENDING,
+        SEND_DELAY,
     };
 
     std::atomic<State> state_{IDLE};

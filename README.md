@@ -9,8 +9,6 @@ Example usage for mbed
 ```cpp
 #include <mbed.h>
 
-#include <cstddef>
-
 #include "wiegand_interface.hpp"
 
 int main()
@@ -22,7 +20,7 @@ int main()
     WiegandInterface w{pc1, pc3};
 
     Ticker t;
-    t.attach_us(callback(&w, &WiegandInterface::tick), 80);
+    t.attach_us(callback(&w, &WiegandInterface::tick), 50);
 
     // Send a 26 bit code
     w.send(WiegandInterface::code(1, 101));
